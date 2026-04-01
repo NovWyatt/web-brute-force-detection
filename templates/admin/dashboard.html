@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin Dashboard — Web Brute Force Detection">
+    <title>Admin Dashboard — Brute Force Detection</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="admin-body">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <span class="sidebar-brand-icon">🛡️</span>
+            <span class="sidebar-brand-text">BF Detection</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/admin/dashboard" class="sidebar-link active" id="nav-dashboard">
+                <span class="sidebar-link-icon">📊</span> Dashboard
+            </a>
+            <a href="/admin/logs" class="sidebar-link" id="nav-logs">
+                <span class="sidebar-link-icon">📋</span> Logs
+            </a>
+            <div class="sidebar-divider"></div>
+            <a href="/dashboard" class="sidebar-link" id="nav-home">
+                <span class="sidebar-link-icon">🏠</span> Trang chủ
+            </a>
+            <a href="/logout" class="sidebar-link" id="nav-logout">
+                <span class="sidebar-link-icon">🚪</span> Đăng xuất
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <span class="sidebar-user">👤 {{ user.username }}</span>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+
+        <!-- Page Header -->
+        <header class="admin-header">
+            <h1>Dashboard</h1>
+            <p class="admin-header-sub">Tổng quan hệ thống phát hiện brute force</p>
+        </header>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-container">
+            {% for category, message in messages %}
+            <div class="flash-message flash-{{ category }}" role="alert">
+                {% if category == 'success' %}✅{% else %}⚠️{% endif %}
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Stats Cards -->
+        <section class="stats-row">
+            <div class="stat-card stat-blue" id="stat-total">
+                <div class="stat-icon">📈</div>
+                <div class="stat-info">
+                    <div class="stat-number">{{ total_attempts }}</div>
+                    <div class="stat-label">Tổng lượt thử</div>
+                </div>
+            </div>
+            <div class="stat-card stat-red" id="stat-failed">
+                <div class="stat-icon">❌</div>
+                <div class="stat-info">
+                    <div class="stat-number">{{ total_failed }}</div>
+                    <div class="stat-label">Thất bại</div>
+                </div>
+            </div>
+            <div class="stat-card stat-green" id="stat-success">
+                <div class="stat-icon">✅</div>
+                <div class="stat-info">
+                    <div class="stat-number">{{ total_success }}</div>
+                    <div class="stat-label">Thành công</div>
+                </div>
+            </div>
+            <div class="stat-card stat-purple" id="stat-ips">
+                <div class="stat-icon">🌐</div>
+                <div class="stat-info">
+                    <div class="stat-number">{{ unique_ips }}</div>
+                    <div class="stat-label">IP unique</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Locked IPs -->
+        <section class="admin-section" id="locked-section">
+            <h2 class="section-title">🔒 IP đang bị khóa</h2>
+            <div class="table-wrapper" id="locked-table-wrapper">
+                {% if locked_list %}
+                <table class="admin-table" id="locked-table">
+                    <thead>
+                        <tr>
+                            <th>IP</th>
+                            <th>Thời gian mở khóa</th>
+                            <th>Còn lại</th>
+                            <th>Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in locked_list %}
+                        <tr>
+                            <td><code>{{ item.ip }}</code></td>
+                            <td>{{ item.unlock_time }}</td>
+                            <td>
+                                <span class="countdown-cell" data-remaining="{{ item.remaining }}">
+                                    {{ item.remaining // 60 }}:{{ '%02d' % (item.remaining % 60) }}
+                                </span>
+                            </td>
+                            <td>
+                                <form method="POST" action="/admin/unlock/{{ item.ip }}" style="display:inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn-unlock" id="btn-unlock-{{ item.ip }}">🔓 Mở khóa</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state">
+                    <span class="empty-icon">✅</span>
+                    <p>Không có IP nào đang bị khóa</p>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Locked Usernames -->
+        <section class="admin-section" id="locked-usernames-section">
+            <h2 class="section-title">👤 Usernames đang bị khóa</h2>
+            <div class="table-wrapper" id="locked-usernames-wrapper">
+                {% if locked_user_list %}
+                <table class="admin-table" id="locked-usernames-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Thời gian mở khóa</th>
+                            <th>Còn lại</th>
+                            <th>Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in locked_user_list %}
+                        <tr>
+                            <td><strong>{{ item.username }}</strong></td>
+                            <td>{{ item.unlock_time }}</td>
+                            <td>
+                                <span class="countdown-cell" data-remaining="{{ item.remaining }}">
+                                    {{ item.remaining // 60 }}:{{ '%02d' % (item.remaining % 60) }}
+                                </span>
+                            </td>
+                            <td>
+                                <form method="POST" action="/admin/unlock-username/{{ item.username }}" style="display:inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn-unlock" id="btn-unlock-user-{{ item.username }}">🔓 Mở khóa</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state">
+                    <span class="empty-icon">✅</span>
+                    <p>Không có username nào đang bị khóa</p>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Recent Logs -->
+        <section class="admin-section">
+            <div class="section-header-row">
+                <h2 class="section-title">📋 Log gần đây</h2>
+                <a href="/admin/logs" class="btn-view-all" id="btn-view-all-logs">Xem tất cả →</a>
+            </div>
+            {% if recent_logs %}
+            <div class="table-wrapper">
+                <table class="admin-table" id="recent-logs-table">
+                    <thead>
+                        <tr>
+                            <th>Thời gian</th>
+                            <th>IP</th>
+                            <th>Username</th>
+                            <th>Kết quả</th>
+                            <th>User Agent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in recent_logs %}
+                        <tr>
+                            <td class="td-nowrap">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td><code>{{ log.ip_address }}</code></td>
+                            <td>{{ log.username or '—' }}</td>
+                            <td>
+                                {% if log.success %}
+                                <span class="badge badge-success">✅ Thành công</span>
+                                {% else %}
+                                <span class="badge badge-failed">❌ Thất bại</span>
+                                {% endif %}
+                            </td>
+                            <td class="td-ua">{{ log.user_agent or '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <span class="empty-icon">📭</span>
+                <p>Chưa có log nào</p>
+            </div>
+            {% endif %}
+        </section>
+
+    </main>
+
+    <script>
+        /* Countdown cells */
+        (function () {
+            var cells = document.querySelectorAll('.countdown-cell');
+            if (!cells.length) return;
+
+            function pad(n) { return n < 10 ? '0' + n : n; }
+
+            setInterval(function () {
+                cells.forEach(function (cell) {
+                    var r = parseInt(cell.getAttribute('data-remaining'), 10);
+                    if (r > 0) {
+                        r--;
+                        cell.setAttribute('data-remaining', r);
+                        cell.textContent = Math.floor(r / 60) + ':' + pad(r % 60);
+                    }
+                });
+            }, 1000);
+        })();
+
+        /* Auto-refresh locked IPs table every 30 seconds */
+        (function () {
+            setInterval(function () {
+                fetch('/admin/dashboard', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (res) { return res.text(); })
+                    .then(function (html) {
+                        var parser = new DOMParser();
+                        var doc = parser.parseFromString(html, 'text/html');
+                        var newWrapper = doc.getElementById('locked-table-wrapper');
+                        var current = document.getElementById('locked-table-wrapper');
+                        if (newWrapper && current) {
+                            current.innerHTML = newWrapper.innerHTML;
+                            /* Re-bind countdown cells */
+                            var newCells = current.querySelectorAll('.countdown-cell');
+                            cells = newCells;
+                        }
+                    })
+                    .catch(function () { /* silently ignore fetch errors */ });
+            }, 30000);
+        })();
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin Logs — Web Brute Force Detection">
+    <title>Admin Logs — Brute Force Detection</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="admin-body">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <span class="sidebar-brand-icon">🛡️</span>
+            <span class="sidebar-brand-text">BF Detection</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/admin/dashboard" class="sidebar-link" id="nav-dashboard">
+                <span class="sidebar-link-icon">📊</span> Dashboard
+            </a>
+            <a href="/admin/logs" class="sidebar-link active" id="nav-logs">
+                <span class="sidebar-link-icon">📋</span> Logs
+            </a>
+            <div class="sidebar-divider"></div>
+            <a href="/dashboard" class="sidebar-link" id="nav-home">
+                <span class="sidebar-link-icon">🏠</span> Trang chủ
+            </a>
+            <a href="/logout" class="sidebar-link" id="nav-logout">
+                <span class="sidebar-link-icon">🚪</span> Đăng xuất
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <span class="sidebar-user">👤 {{ user.username }}</span>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+
+        <!-- Page Header -->
+        <header class="admin-header">
+            <h1>Logs</h1>
+            <p class="admin-header-sub">Lịch sử đăng nhập chi tiết</p>
+        </header>
+
+        <!-- Filter Form -->
+        <section class="admin-section">
+            <form class="filter-form" method="GET" action="/admin/logs" id="filter-form">
+                <div class="filter-group">
+                    <label for="filter-ip">IP Address</label>
+                    <input
+                        type="text"
+                        id="filter-ip"
+                        name="ip"
+                        placeholder="VD: 192.168.1.1"
+                        value="{{ filter_ip }}"
+                    >
+                </div>
+                <div class="filter-group">
+                    <label for="filter-status">Trạng thái</label>
+                    <select id="filter-status" name="status">
+                        <option value="" {% if not filter_status %}selected{% endif %}>Tất cả</option>
+                        <option value="success" {% if filter_status == 'success' %}selected{% endif %}>Thành công</option>
+                        <option value="failed" {% if filter_status == 'failed' %}selected{% endif %}>Thất bại</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filter-from">Từ ngày</label>
+                    <input
+                        type="date"
+                        id="filter-from"
+                        name="from"
+                        value="{{ filter_from }}"
+                    >
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn-filter" id="btn-filter">🔍 Lọc</button>
+                    <a href="/admin/logs" class="btn-clear" id="btn-clear-filter">✕ Xóa filter</a>
+                </div>
+            </form>
+        </section>
+
+        <!-- Results -->
+        <section class="admin-section">
+            <div class="section-header-row">
+                <h2 class="section-title">📋 Kết quả</h2>
+                <span class="results-count">{{ total_results }} bản ghi</span>
+            </div>
+
+            {% if results %}
+            <div class="table-wrapper">
+                <table class="admin-table" id="logs-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Thời gian</th>
+                            <th>IP</th>
+                            <th>Username</th>
+                            <th>Kết quả</th>
+                            <th>User Agent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in results %}
+                        <tr>
+                            <td class="td-id">{{ log.id }}</td>
+                            <td class="td-nowrap">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td><code>{{ log.ip_address }}</code></td>
+                            <td>{{ log.username or '—' }}</td>
+                            <td>
+                                {% if log.success %}
+                                <span class="badge badge-success">✅ Thành công</span>
+                                {% else %}
+                                <span class="badge badge-failed">❌ Thất bại</span>
+                                {% endif %}
+                            </td>
+                            <td class="td-ua">{{ log.user_agent or '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <span class="empty-icon">🔍</span>
+                <p>Không tìm thấy bản ghi nào phù hợp</p>
+            </div>
+            {% endif %}
+        </section>
+
+    </main>
+
+</body>
+</html>

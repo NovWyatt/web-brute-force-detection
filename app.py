@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_wtf.csrf import CSRFProtect
 from dotenv import load_dotenv
 from config import Config
 from extensions import db
@@ -6,16 +7,21 @@ import bcrypt
 
 load_dotenv()
 
+csrf = CSRFProtect()
+
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
     db.init_app(app)
+    csrf.init_app(app)
 
     # Register blueprints
     from routes.auth import auth_bp
+    from routes.admin import admin_bp
     app.register_blueprint(auth_bp, url_prefix="")
+    app.register_blueprint(admin_bp)
 
     with app.app_context():
         # Import models so SQLAlchemy knows about them before create_all()
