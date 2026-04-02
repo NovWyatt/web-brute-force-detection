@@ -1,0 +1,248 @@
+================================================================
+  TỔNG QUAN HƯỚNG 3 - DEPLOY PRODUCTION
+  Web Brute Force Detection
+================================================================
+
+
+MỤC TIÊU
+=========
+Chuyển app từ môi trường dev (SQLite + in-memory dict)
+sang production (PostgreSQL + Redis + Gunicorn + Nginx).
+
+Hiện tại app chạy bằng Flask dev server, dùng SQLite làm
+database và Python dict trong RAM để track rate limit.
+Khi deploy production cần thay bằng các công cụ bền vững hơn.
+
+
+================================================================
+CÁC FILE CẦN TẠO KHI DEPLOY
+================================================================
+
+1. wsgi.py
+   - Entrypoint cho Gunicorn
+   - Nội dung: import create_app, tạo app instance
+   - Gunicorn sẽ gọi file này thay vì app.py
+
+2. gunicorn.conf.py
+   - Cấu hình Gunicorn: số workers, bind address, log
+   - Workers khuyến nghị: (2 x CPU cores) + 1
+   - Bind: 127.0.0.1:8000 (Nginx sẽ proxy tới đây)
+
+3. deploy/brute-force-app.service
+   - Systemd service file để Linux tự khởi động app
+   - Đặt tại /etc/systemd/system/ trên server
+   - Cho phép: start, stop, restart, enable (auto-start)
+
+4. deploy/nginx.conf
+   - Cấu hình Nginx làm reverse proxy
+   - Proxy pass từ port 80/443 → Gunicorn port 8000
+   - Rate limit thêm 1 lớp ở tầng Nginx
+   - Serve static files trực tiếp (CSS, JS, images)
+
+5. deploy/setup.sh
+   - Script cài đặt server lần đầu
+   - Cài Python, pip, venv, PostgreSQL, Redis, Nginx, Certbot
+   - Tạo user hệ thống, tạo thư mục /var/www/
+
+6. deploy/deploy.sh
+   - Script chạy mỗi khi update code mới
+   - Pull code → cài pip → migrate DB → restart service
+
+7. .env.production.example
+   - File mẫu chứa tất cả biến môi trường cần điền
+   - Copy thành .env rồi điền giá trị thật
+
+
+================================================================
+THỨ TỰ THỰC HIỆN KHI SẴN SÀNG DEPLOY
+================================================================
+
+BƯỚC 1: Thuê VPS
+-----------------
+- Chọn 1 nhà cung cấp: DigitalOcean / Vultr / Linode
+- Cấu hình tối thiểu: Ubuntu 22.04, 1 vCPU, 1GB RAM, 25GB SSD
+- Giá khoảng $5-6/tháng
+- Sau khi tạo, bạn sẽ nhận được IP và password root
+
+BƯỚC 2: Chạy setup.sh trên server
+-----------------------------------
+- SSH vào server: ssh root@<IP-SERVER>
+- Upload hoặc copy nội dung setup.sh lên server
+- Chạy: bash setup.sh
+- Script sẽ cài đặt tất cả phần mềm cần thiết
+
+BƯỚC 3: Clone repo lên server
+-------------------------------
+- cd /var/www/
+- git clone <URL-REPO> brute-force-app
+- cd brute-force-app
+
+BƯỚC 4: Tạo file .env
+-----------------------
+- cp .env.production.example .env
+- nano .env
+- Điền các giá trị thật:
+  + SECRET_KEY: chuỗi random dài ít nhất 32 ký tự
+    Tạo bằng lệnh: python3 -c "import secrets; print(secrets.token_hex(32))"
+  + SQLALCHEMY_DATABASE_URI: postgresql://appuser:PASSWORD@localhost/bruteforcedb
+  + Các biến SMTP nếu muốn nhận email cảnh báo
+
+BƯỚC 5: Tạo PostgreSQL database
+---------------------------------
+- sudo -u postgres psql
+- Trong psql, chạy lần lượt:
+
+    CREATE USER appuser WITH PASSWORD 'mat-khau-manh-o-day';
+    CREATE DATABASE bruteforcedb OWNER appuser;
+    GRANT ALL PRIVILEGES ON DATABASE bruteforcedb TO appuser;
+    \q
+
+- Lưu ý: thay 'mat-khau-manh-o-day' bằng password thật
+- Password này phải khớp với giá trị trong .env
+
+BƯỚC 6: Cài Redis
+-------------------
+- sudo apt install redis-server -y
+- sudo systemctl enable redis-server
+- sudo systemctl start redis-server
+- Kiểm tra: redis-cli ping → phải trả về "PONG"
+
+BƯỚC 7: Chạy deploy.sh
+------------------------
+- bash deploy/deploy.sh
+- Script sẽ:
+  + Tạo virtual environment
+  + Cài dependencies (bao gồm gunicorn, psycopg2-binary)
+  + Tạo bảng trong database
+  + Copy service file vào systemd
+  + Copy nginx config
+  + Reload và restart services
+
+BƯỚC 8: Trỏ domain về IP server
+---------------------------------
+- Vào trang quản lý domain (Namecheap, GoDaddy, Cloudflare, ...)
+- Tạo A record:   @ → <IP-SERVER>
+- Tạo A record: www → <IP-SERVER>
+- DNS cần 5-30 phút để cập nhật
+- Kiểm tra: ping yourdomain.com → phải trả về IP server
+
+BƯỚC 9: Cài SSL (HTTPS miễn phí)
+----------------------------------
+- sudo apt install certbot python3-certbot-nginx -y
+- sudo certbot --nginx -d yourdomain.com -d www.yourdomain.com
+- Làm theo hướng dẫn trên màn hình (nhập email, đồng ý TOS)
+- Certbot sẽ tự cấu hình Nginx để dùng HTTPS
+- SSL tự gia hạn mỗi 90 ngày, không cần làm gì thêm
+
+
+================================================================
+LỆNH NHANH KHI CẦN
+================================================================
+
+Xem log app (realtime):
+  sudo journalctl -u brute-force-app -f
+
+Xem 50 dòng log gần nhất:
+  sudo journalctl -u brute-force-app -n 50
+
+Restart app:
+  sudo systemctl restart brute-force-app
+
+Dừng app:
+  sudo systemctl stop brute-force-app
+
+Xem trạng thái app:
+  sudo systemctl status brute-force-app
+
+Xem log Nginx (lỗi):
+  sudo tail -f /var/log/nginx/error.log
+
+Xem log Nginx (truy cập):
+  sudo tail -f /var/log/nginx/access.log
+
+Restart Nginx:
+  sudo systemctl restart nginx
+
+Kết nối PostgreSQL:
+  psql -U appuser -d bruteforcedb
+
+Xem tất cả login attempts trong DB:
+  psql -U appuser -d bruteforcedb -c "SELECT * FROM login_attempts ORDER BY timestamp DESC LIMIT 20;"
+
+Kiểm tra Redis:
+  redis-cli ping
+
+Xem size database:
+  psql -U appuser -d bruteforcedb -c "SELECT pg_size_pretty(pg_database_size('bruteforcedb'));"
+
+
+================================================================
+LƯU Ý QUAN TRỌNG
+================================================================
+
+BẢO MẬT:
+  ✓ Đổi SECRET_KEY thành chuỗi random dài (32+ ký tự)
+    Tạo bằng: python3 -c "import secrets; print(secrets.token_hex(32))"
+  ✓ Đổi password tài khoản admin ngay sau khi deploy
+  ✓ KHÔNG commit file .env lên git (đã có trong .gitignore)
+  ✓ Dùng firewall: sudo ufw allow 22,80,443/tcp && sudo ufw enable
+
+EMAIL CẢNH BÁO:
+  ✓ Đặt ALERT_ENABLED=true trong .env
+  ✓ Điền đầy đủ SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
+  ✓ Nếu dùng Gmail: tạo App Password tại myaccount.google.com
+    (Không dùng password Gmail thường, sẽ bị chặn)
+
+BACKUP DATABASE:
+  ✓ Backup thủ công:
+    pg_dump -U appuser bruteforcedb > backup_$(date +%Y%m%d).sql
+  ✓ Restore từ backup:
+    psql -U appuser bruteforcedb < backup_20240101.sql
+  ✓ Nên setup cron job backup hàng ngày:
+    0 2 * * * pg_dump -U appuser bruteforcedb > /backups/db_$(date +\%Y\%m\%d).sql
+
+SSL:
+  ✓ Certbot tự gia hạn SSL, không cần làm thủ công
+  ✓ Kiểm tra gia hạn: sudo certbot renew --dry-run
+  ✓ Nếu gia hạn thất bại, kiểm tra: sudo certbot certificates
+
+CẬP NHẬT CODE:
+  ✓ Mỗi khi push code mới lên git:
+    1. SSH vào server
+    2. cd /var/www/brute-force-app
+    3. bash deploy/deploy.sh
+  ✓ Hoặc setup CI/CD (GitHub Actions) để tự động
+
+
+================================================================
+PACKAGE CẦN CÀI THÊM CHO PRODUCTION
+================================================================
+
+pip install gunicorn psycopg2-binary redis
+
+Chi tiết:
+  - gunicorn       : WSGI server (thay Flask dev server)
+  - psycopg2-binary: Driver kết nối PostgreSQL
+  - redis          : Client để dùng Redis thay in-memory dict
+
+Lưu ý: Các package này KHÔNG cần cài ở local dev.
+Chỉ cài trên server production.
+
+
+================================================================
+TỔNG KẾT
+================================================================
+
+Khi chưa sẵn sàng deploy, app vẫn chạy hoàn chỉnh ở local:
+  - Database: SQLite (tự tạo file instance/app.db)
+  - Rate limit: In-memory dict (reset khi restart app)
+  - Server: Flask dev server (http://127.0.0.1:5000)
+
+Khi muốn deploy production, chỉ cần:
+  1. Tạo các file deploy/ như liệt kê ở trên
+  2. Làm theo 9 bước THỨ TỰ THỰC HIỆN
+  3. Thay SQLite bằng PostgreSQL (đổi SQLALCHEMY_DATABASE_URI)
+  4. Thay in-memory dict bằng Redis (cập nhật brute_force.py)
+
+File này là tài liệu tham khảo. Khi bạn sẵn sàng deploy,
+hãy yêu cầu tạo các file trong mục "CÁC FILE CẦN TẠO KHI DEPLOY".
