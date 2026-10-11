@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Bí mật và dữ liệu sinh ra khi chạy
+.env
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE / hệ điều hành
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
