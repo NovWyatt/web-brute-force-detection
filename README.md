@@ -1,5 +1,21 @@
 # Web Brute Force Detection
 
+> **Repo này không còn phát triển.** Ý tưởng đã được viết lại thành package Laravel
+> **[novwyatt/laravel-login-guard](https://github.com/NovWyatt/laravel-login-guard)**
+> ([Packagist](https://packagist.org/packages/novwyatt/laravel-login-guard)): có test tự động, CI, và đang chạy thật
+> ở phần tài khoản của [giadat.wyattos.cyou](https://giadat.wyattos.cyou). Bản Flask bên dưới giữ lại để tham khảo.
+
+| | Bản Flask này | laravel-login-guard |
+|---|---|---|
+| Đếm lần sai | Theo IP và username: 5 lần trong 5 phút | Theo username (5 lần) và IP (20 lần) trong 15 phút, chỉnh được |
+| Khóa | Cố định 15 phút | Tăng dần 1, 2, 4… phút, tối đa 1 ngày |
+| Lưu bộ đếm | `dict` trong RAM, mất khi khởi động lại | Cache của Laravel (database, Redis…); trạng thái khóa ở database |
+| Danh sách IP | Không có | Cho phép / chặn, dải CIDR, IPv6 |
+| Cảnh báo | Email SMTP | Mail, Slack, Telegram; tối đa 1 lần mỗi giờ cho mỗi đối tượng |
+| Quản trị | Dashboard web | Lệnh `login-guard:list`, `login-guard:unlock`; sự kiện `LoginLocked`, `SuspiciousActivity` |
+| Gắn vào ứng dụng | Code đăng nhập riêng của app | Nghe sự kiện đăng nhập của Laravel: mọi `Auth::attempt()` (Fortify, Breeze…) được bảo vệ |
+| Kiểm thử | Không có | 51 test Pest, Larastan mức max, CI PHP 8.3 / 8.4 × Laravel 12 / 13 |
+
 Flask web app phát hiện và chặn tấn công brute force login. Tự động khóa IP và username sau nhiều lần đăng nhập thất bại, ghi log chi tiết, và cung cấp admin dashboard để giám sát hệ thống.
 
 ## Tính năng
