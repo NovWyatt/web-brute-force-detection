@@ -2,8 +2,8 @@
 
 > **Repo này không còn phát triển.** Ý tưởng đã được viết lại thành package Laravel
 > **[novwyatt/laravel-login-guard](https://github.com/NovWyatt/laravel-login-guard)**
-> ([Packagist](https://packagist.org/packages/novwyatt/laravel-login-guard)): có test tự động, CI, và đang chạy thật
-> ở phần tài khoản của [giadat.wyattos.cyou](https://giadat.wyattos.cyou). Bản Flask bên dưới giữ lại để tham khảo.
+> ([Packagist](https://packagist.org/packages/novwyatt/laravel-login-guard)), có test tự động và CI.
+> Bản Flask bên dưới giữ lại để tham khảo.
 
 | | Bản Flask này | laravel-login-guard |
 |---|---|---|
